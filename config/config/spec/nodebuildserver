@@ -1,4 +1,4 @@
 name = nodebuildserver
 rorotika.home = /opt/rorotika/home
-cmd = node /opt/rorotika/home/apps/${name}-${version}/ccp.js
+cmd = node /opt/rorotika/home/apps/${name}-${version}/nodebuildserver.js
 
