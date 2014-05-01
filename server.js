@@ -1,4 +1,5 @@
 var spawn = require('child_process').spawn,
+    tmp = require("tmp"),
     _ = require("underscore"),
     fs = require("fs"),
     async = require("async"),
@@ -18,6 +19,7 @@ var run_process = function (cmd,args,opts,callback) {
         replied = false;
 
     process.on("error", function (err) {
+        replied = true;
         callback("Error: " +  err, process_stdout, process_stderr);
     });
 
@@ -47,22 +49,25 @@ var run_process = function (cmd,args,opts,callback) {
 
 app.get('/build/:app', function(req, res){
     
-    var tmp = "/tmp/mytemp",
-        tar = "/tmp/mytar.tar.gz";
-    async.series([
-        run_process.bind(null,"git",["clone","git@git.rorotika:ccp",tmp]),
-        run_process.bind(null,"npm",["install"],{cwd:tmp}),
-        run_process.bind(null,"/bin/bash",["-c","tar czf " + tar + " *"],{cwd:tmp})
-    ], function (err, outs) {
-        if (err) {
-            res.writeHead(500,{"Content-type":"text/html"});
-            res.end("Error: " + err + ":\n" + _.pluck(outs,"1").join("\n"));
-        } else {
-            res.writeHead(200,{"Content-type":"application/gzip"});
-            //var tarballContents = fs.readFileSync(tar);
-            //res.end(tarballContents);
-            fs.createReadStream(tar).pipe(res);
-        }
+    var app = req.params.app,
+        url = "git@git.rorotika:" + app;
+
+    tmp.dir(function (err, tmp_dir) {
+        tmp.tmpName(function (err,tar) {
+            async.series([
+                run_process.bind(null,"git",["clone",url,tmp_dir]),
+                run_process.bind(null,"npm",["install"],{cwd:tmp_dir}),
+                run_process.bind(null,"/bin/bash",["-c","tar czf " + tar + " *"],{cwd:tmp_dir})
+            ], function (err, outs) {
+                if (err) {
+                    res.writeHead(500,{"Content-type":"text/html"});
+                    res.end("Error: " + err + ":\n" + _.pluck(outs,"1").join("\n"));
+                } else {
+                    res.writeHead(200,{"Content-type":"application/gzip"});
+                    fs.createReadStream(tar).pipe(res);
+                }
+            });
+        });
     });
     
 });

@@ -5,6 +5,7 @@
     "dependencies":{
         "express":"*",
         "underscore":"*",
-        "async":"*"
+        "async":"*",
+        "tmp":"*"
     }
 }
