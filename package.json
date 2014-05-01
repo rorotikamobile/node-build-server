@@ -1,0 +1,10 @@
+{
+    "name":"nodebuildserver",
+    "version":"0.0.1",
+    "description":"nodebuildserver",
+    "dependencies":{
+        "express":"*",
+        "underscore":"*",
+        "async":"*"
+    }
+}
