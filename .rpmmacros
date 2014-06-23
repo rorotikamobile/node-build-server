@@ -1,0 +1,455 @@
+%_topdir            /home/makerpm/rpm
+%rorotika_home      /opt/rorotika/home
+%as_rorotika        %{__sudo} -u rorotika
+%makerpm_dir        /home/makerpm/rpm
+%config_script      /opt/rorotika/home/scripts/common/config.sh
+#%report_rpm_parser  %{makerpm_dir}/scripts/report-rpm-parser.py
+%report_rpm_tree    %{makerpm_dir}/scripts/report-rpm-gettrees.py
+%services_state     /opt/rorotika/home/local/statistika/service.state
+
+%roro_files \
+%defattr(644,rorotika,users,755) \
+/opt/rorotika/home/*
+
+%prep_clean()  \
+    echo "In prep_clean"
+
+%prep_export_reports() \
+	mkdir -p %{_builddir}/reports/0-services
+
+%prep_export_service_git() \
+	#cd %{name} \
+	#git clone %{gitbase} config \
+	#pushd config \
+	#git checkout %2 \
+	#popd \
+	#cd ..
+
+%prep_src()  \
+    echo "inside prep_src"
+
+%prep_git()  \
+        echo "inside prep_git"
+
+%prep_config()  \
+	#cd %{name} \
+	#git clone %{gitbase}/config/%1.git config \
+	#cd config \
+	#git checkout %2 \
+	#cd .. \
+	#cd ..
+
+%build_src()  \
+	mvn -U clean install
+
+%build_node()  \
+	curl http://beta.rorotika:5067/build/%1 > node-app-build.tgz \
+	if [ $? -ne 0 ]; then \
+		echo "Error building node app!"; \
+		exit 255 \
+	fi \
+	tar xzvf node-app-build.tgz \
+	rm node-app-build.tgz
+
+%install_clean_buildroot() \
+	rm -rf %{buildroot}/* \
+	mkdir -p %{buildroot}/opt/rorotika/home
+
+%install_clean()  \
+	rm -rf %{buildroot}/* \
+\
+	mkdir -p %{buildroot}/opt/rorotika/home \
+	mkdir -p %{buildroot}/opt/rorotika/home/apps \
+	mkdir -p %{buildroot}/opt/rorotika/home/libs \
+        mkdir -p %{buildroot}/opt/rorotika/home/data \
+	mkdir -p %{buildroot}/opt/rorotika/home/config/classpaths
+
+%install_jar() \
+	mkdir -p %{buildroot}/opt/rorotika/home/libs/$(dirname %1) \
+	cp /home/makerpm/.m2/repository/%1 %{buildroot}/opt/rorotika/home/libs/%1
+
+%install_src()  \
+	CLASSPATH_FILE=%{_builddir}/target/%1-*.classpath \
+\
+	for i in $(cat ${CLASSPATH_FILE}); do \
+		JAR=$(echo $i | sed -e "s:libs/::g") \
+		mkdir -p %{buildroot}/opt/rorotika/home/libs/$(dirname $JAR) \
+		cp -r /home/makerpm/.m2/repository/$JAR %{buildroot}/opt/rorotika/home/libs/$JAR \
+	done \
+\
+	cp ${CLASSPATH_FILE} %{buildroot}/opt/rorotika/home/config/classpaths
+
+%install_src_multi_module()  \
+	CLASSPATH_FILE=%{_builddir}/web-module/target/%2-*.classpath \
+\
+	for i in $(cat ${CLASSPATH_FILE}); do \
+		JAR=$(echo $i | sed -e "s:libs/::g") \
+		mkdir -p %{buildroot}/opt/rorotika/home/libs/$(dirname $JAR) \
+		cp -r /home/makerpm/.m2/repository/$JAR %{buildroot}/opt/rorotika/home/libs/$JAR \
+	done \
+\
+	cp ${CLASSPATH_FILE} %{buildroot}/opt/rorotika/home/config/classpaths
+
+%install_assembly() \
+	cp %{_builddir}/target/%1-*.jar %{buildroot}/opt/rorotika/home/apps \
+	echo >> %{buildroot}/opt/rorotika/home/config/spec/%1 \
+	MD5=$(md5sum %{_builddir}/target/%1-*.jar | head -n 1 | awk '{ print $1 }') \
+	echo "md5 = $MD5" >> %{buildroot}/opt/rorotika/home/config/spec/%1
+
+%install_node_no_app() \
+	mkdir -p %{buildroot}/opt/rorotika/home/apps/%1 \
+	cp -r %{_builddir}/* %{buildroot}/opt/rorotika/home/apps/%1 
+
+%install_node() \
+	mkdir -p %{buildroot}/opt/rorotika/home/apps/%1-%{version} \
+	cp -r %{_builddir}/* %{buildroot}/opt/rorotika/home/apps/%1-%{version} \
+	echo >> %{buildroot}/opt/rorotika/home/config/spec/%1 
+	
+%install_git() \
+        GIT_DIR=%{_builddir} \
+\
+	# copy bin/ if it exists \
+        if [ -d $GIT_DIR/bin ]; then \
+                cp -R $GIT_DIR/bin %{buildroot}/opt/rorotika/home \
+        fi \
+\
+        # copy scripts/ directory, if it exists \
+        if [ -d $GIT_DIR/scripts ]; then \
+                cp -R $GIT_DIR/scripts %{buildroot}/opt/rorotika/home \
+        fi \
+
+%install_config()  \
+    if [ -d %{_builddir}/config/config ]; then \
+        CONFIG_DIR=%{_builddir}/config \
+    else \
+        CONFIG_DIR=%{_builddir} \
+    fi \
+\
+    mkdir -p %{buildroot}/opt/rorotika/home \
+\
+	# copy config/ directory, if it exists \
+	if [ -d $CONFIG_DIR/config ]; then \
+		cp -R $CONFIG_DIR/config %{buildroot}/opt/rorotika/home \
+	fi \
+\
+	# copy local/ directory, if it exists \
+	if [ -d $CONFIG_DIR/local ]; then \
+		cp -R $CONFIG_DIR/local %{buildroot}/opt/rorotika/home \
+	fi \
+\
+	# copy scripts/ directory, if it exists \
+	if [ -d $CONFIG_DIR/scripts ]; then \
+		cp -R $CONFIG_DIR/scripts %{buildroot}/opt/rorotika/home \
+	fi \
+\
+	# copy reports/ directory, if it exists \
+	if [ -d $CONFIG_DIR/reports ]; then \
+		cp -R $CONFIG_DIR/reports %{buildroot}/opt/rorotika/home \
+	fi \
+\
+	# copy bin/ directory, if it exists \
+	if [ -d $CONFIG_DIR/bin ]; then \
+		cp -R $CONFIG_DIR/bin %{buildroot}/opt/rorotika/home \
+	fi  \
+\
+        # copy data/ directory, if it exists \
+        if [ -d $CONFIG_DIR/data ]; then \
+                cp -R $CONFIG_DIR/data %{buildroot}/opt/rorotika/home \
+        fi \
+
+%install_git_geo_oracle() \
+	GIT_DIR=%{_builddir} \
+\
+	# copy scripts/ directory, if it exists \
+	if [ -d $GIT_DIR/scripts/ ]; then \
+		cp -R scripts/ %{buildroot}/opt/oracle \
+	fi \
+
+%start_app()  \
+	%{__sudo} -u rorotika /bin/bash -c ' \
+	source /opt/rorotika/home/scripts/common/config.sh \
+	add_var /opt/rorotika/home/local/application-manager/applications.properties %1 %2 '
+
+%stop_app()  \
+	%{__sudo} -u rorotika /bin/bash -c ' \
+	source /opt/rorotika/home/scripts/common/config.sh \
+	remove_var /opt/rorotika/home/local/application-manager/applications.properties %1 %2 '
+
+
+%start_webapp() \
+	%{__sudo} -u rorotika /bin/bash -c ' \
+	source /opt/rorotika/home/scripts/common/config.sh \
+\
+	add_var /opt/rorotika/home/local/rorotika-web-server/webapps.properties %1 /opt/rorotika/home/config/classpaths/%2-%3.classpath ' \
+\
+	%{as_rorotika} %{__python} /opt/rorotika/home/scripts/rorotika-web-server/webapps.py --operation=add --file=/opt/rorotika/home/local/rorotika-web-server/webserver.properties --webapp=%1
+
+%stop_webapp() \
+	%{as_rorotika} %{__python} /opt/rorotika/home/scripts/rorotika-web-server/webapps.py --operation=remove --file=/opt/rorotika/home/local/rorotika-web-server/webserver.properties --webapp=%1 \
+	\
+	%{__sudo} -u rorotika /bin/bash -c ' \
+	source /opt/rorotika/home/scripts/common/config.sh \
+	remove_var /opt/rorotika/home/local/rorotika-web-server/webapps.properties %1 /opt/rorotika/home/config/classpaths/%2-%3.classpath '
+}
+
+%install_snapshot_local() \
+	if [ -e %{rorotika_home}/local ]; then \
+		cd %{rorotika_home}/local \
+		chown -R rorotika:users * \
+		VAR=`%{as_rorotika} %{__svn} status | grep '\\!' > /dev/null; echo $?` \
+		if [ $VAR -eq 0 ] ; then %{__svn} status | grep '\\!' | %{__awk} '{print $2;}' | xargs %{as_rorotika} %{__svn} rm ; fi \
+		%{as_rorotika} %{__svn} add --force * \
+		%{as_rorotika} %{__svn} ci . -m "Snapshot of local after installation of %{artifactId}-%{version}" \
+	else \
+		echo "%{rorotika_home}/local doesn't exist\\!" \
+	fi
+
+%uninstall_snapshot_local() \
+	if [ -e %{rorotika_home}/local ]; then \
+		cd %{rorotika_home}/local \
+		chown -R rorotika:users * \
+		VAR=`%{as_rorotika} %{__svn} status | grep '\\!' > /dev/null; echo $?` \
+		if [ $VAR -eq 0 ] ; then %{__svn} status | grep '\\!' | %{__awk} '{print $2;}' | xargs %{as_rorotika} %{__svn} rm ; fi \
+		%{as_rorotika} %{__svn} add --force * \
+		%{as_rorotika} %{__svn} ci . -m "Snapshot of local after uninstallation of %{name}-%{version}" \
+	else \
+		echo "%{rorotika_home}/local doesn't exist\\!" \
+	fi
+
+%snapshot_local() \
+	if [ -e %{rorotika_home}/local ]; then \
+		cd %{rorotika_home}/local \
+		VAR=`%{as_rorotika} %{__svn} status | grep '\\!' > /dev/null; echo $?` \
+                if [ $VAR -eq 0 ] ; then %{__svn} status | grep '\\!' | %{__awk} '{print $2;}' | xargs %{as_rorotika} %{__svn} rm ; fi \
+                %{as_rorotika} %{__svn} add --force * \
+                %{as_rorotika} %{__svn} ci . -m "Snapshotting configuration for package %{name}-%{version}" \
+	else \
+		echo "%{rorotika_home}/local doesn't exist\\!" \
+	fi
+
+
+%encrypt_config() \
+    if [ -d %{_builddir}/config/config ]; then \
+        CONFIG_DIR=%{_builddir}/config \
+    else \
+        CONFIG_DIR=%{_builddir} \
+    fi \
+\
+	java -cp %{makerpm_dir}/scripts/cryptor-1.0.jar com.rorotika.cryptor.Cryptor --encryptAll $CONFIG_DIR/config
+
+
+
+
+
+%install_service() \
+%{lua:	local services_state = rpm.expand("%{services_state}") \
+        local builddir = rpm.expand("%{_builddir}") \
+        local file = io.open(builddir .. "/meta/statistika/service.state", "r") \
+\
+	if file then \
+		print("source " .. rpm.expand("%{config_script}") .. "\\n") \
+		while true do \
+			local line = file:read("*l") \
+			if line == nil then break end \
+			if string.len(line) ~= 0 then \
+				print("add_var " .. services_state .. " " .. string.gsub(line, "=", " ")) \
+				print("\\n") \
+			end \
+		end \
+	else \
+		error("Unable to read meta/statistika/service.state. Either make sure the file exists and has data in it or remove %install_service from the RPM's spec file.") \
+	end \
+}
+
+
+%uninstall_service() \
+%{lua:	local services_state = rpm.expand("%{services_state}") \
+        local builddir = rpm.expand("%{_builddir}") \
+        local file = io.open(builddir .. "/meta/statistika/service.state", "r") \
+\
+	if file then \
+		print("source " .. rpm.expand("%{config_script}") .. "\\n") \
+		while file ~= nil do \
+			local line = file:read("*l") \
+			if line == nil then break end \
+			if string.len(line) ~= 0 then \
+				print("remove_var " .. services_state .. " " .. string.gsub(line, "=", " ")) \
+				print("\\n") \
+			end \
+		end \
+	else \
+		error("Unable to read meta/statistika/service.state. Either make sure the file exists and has data in it or remove %uninstall_service from the RPM's spec file.") \
+	end \
+}
+
+%install_reports() \
+rm /tmp/trees > /dev/null 2>&1 \
+%{lua:  local makerpm_dir = rpm.expand("%{makerpm_dir}") \
+	local script = rpm.expand("%{script}") \
+\
+	local ini = rpm.expand("%{__rorotika_builddir}") .. "/rpm/" .. rpm.expand("%1") \
+	local report_rpm_tree = rpm.expand("%{report_rpm_tree}") \
+\
+\
+	os.execute("python " .. report_rpm_tree .. " " .. ini .. " > /tmp/trees") \
+\
+	local file = io.open("/tmp/trees", "r") \
+\
+	if file then \
+		while true do \
+			local line = file:read("*l") \
+			if line == nil then break end \
+			print(rpm.expand("%{__python}") .. " " .. script .. " --operation=create  --service_dir=/opt/rorotika/home/reports/0-services --tree_file=/opt/rorotika/home/reports/" .. line .. " --reports_file=/opt/rorotika/home/local/portal/reports.xml\\n") \
+		end \
+	else \
+		error("Unable to locate file /tmp/trees. Python script failed running in ini file: " .. ini) \
+	end \
+}
+
+%uninstall_reports() \
+rm /tmp/trees \
+%{lua:  local makerpm_dir = rpm.expand("%{makerpm_dir}") \
+	local script = rpm.expand("%{script}") \
+	local ini = rpm.expand("%{__rorotika_builddir}") .. "/rpm/" .. rpm.expand("%1") \
+	local report_rpm_tree = rpm.expand("%{report_rpm_tree}") \
+\
+\
+	os.execute("python " .. report_rpm_tree .. " " .. ini .. " > /tmp/trees") \
+\
+	local file = io.open("/tmp/trees", "r") \
+\
+	if file then \
+		while true do \
+			local line = file:read("*l") \
+			if line == nil then break end \
+			print(rpm.expand("%{__python}") .. " " .. script .. " --operation=delete  --service_dir=/opt/rorotika/home/reports/0-services --tree_file=/opt/rorotika/home/reports/" .. line .. " --reports_file=/opt/rorotika/home/local/portal/reports.xml\\n") \
+		end \
+	else \
+		error("Unable to locate file /tmp/trees. Python script failed running in ini file: " .. ini) \
+	end \
+}
+
+
+%install_users() \
+echo "Installing FTP users..." \
+%{lua: local builddir = rpm.expand("%{_builddir}") \
+       local python = rpm.expand("%{__python}") \
+       local file = io.open(builddir .. "/meta/users", "r") \
+\
+if file then \
+	while true do \
+		local line = file:read("*l") \
+		if line == nil then break end \
+		if string.len(line) ~= 0 then \
+			local s = string.gsub(line, "^", "--username=", 1) \
+			s = string.gsub(s, ":", " --password=", 1) \
+			s = string.gsub(s, ":", " --group=", 1) \
+			s = string.gsub(s, ":", " --groups=", 1) \
+			s = string.gsub(s, ":", " --homedir=", 1) \
+			s = string.gsub(s, ":", " --shell=", 1) \
+			print("PYTHONPATH=/opt/rorotika/home/scripts/python " .. python .. " /opt/rorotika/home/scripts/common/usersadd.py --mode=install " .. s) \
+			print("\\n") \
+		end \
+	end \
+else \
+	error("Unable to locate file meta/users. Either make sure the file exists and has data in it or remove %install_users from the RPM's spec file.") \
+end \
+}
+
+%uninstall_users() \
+echo "Uninstalling FTP users..." \
+%{lua: local builddir = rpm.expand("%{_builddir}") \
+       local python = rpm.expand("%{__python}") \
+       local file = io.open(builddir .. "/meta/users", "r") \
+\
+if file then \
+	while file ~= nil do \
+		local line = file:read("*l") \
+		if line == nil then break end \
+		if string.len(line) ~= 0 then \
+			local s = string.gsub(line, "^", "--username=", 1) \
+			s = string.gsub(s, ":", " --password=", 1) \
+			s = string.gsub(s, ":", " --group=", 1) \
+			s = string.gsub(s, ":", " --groups=", 1) \
+			s = string.gsub(s, ":", " --homedir=", 1) \
+			s = string.gsub(s, ":", " --shell=", 1) \
+			print("PYTHONPATH=/opt/rorotika/home/scripts/python " .. python .. " /opt/rorotika/home/scripts/common/usersadd.py --mode=uninstall " .. s) \
+			print("\\n") \
+		end \
+	end \
+else \
+	error("Unable to locate file meta/users. Either make sure the file exists and has data in it or remove %uninstall_users from the RPM's spec file.") \
+end \
+}
+
+%install_dbusers() \
+echo "Installing Postgres Database users..." \
+%{lua: local builddir = rpm.expand("%{_builddir}") \
+       local python = rpm.expand("%{__python}") \
+       local file = io.open(builddir .. "/meta/dbusers", "r") \
+\
+if file then \
+        while true do \
+                local line = file:read("*l") \
+                if line == nil then break end \
+                if string.len(line) ~= 0 then \
+                        print("PYTHONPATH=/opt/rorotika/home/scripts/python " .. python .. " /opt/rorotika/home/scripts/common/dbusersadd.py " .. line) \
+                        print("\\n") \
+                end \
+        end \
+else \
+        print("Unable to locate file meta/dbusers. Either make sure the file exists and has data in it or remove %install_dbusers from the RPM's spec file.") \
+end \
+}
+
+%install_oradbusers() \
+echo "Installing Oracle Database users..." \
+%{lua: local builddir = rpm.expand("%{_builddir}") \
+local file = io.open(builddir .. "/meta/oradbusers", "r") \
+\
+if file then \
+while true do \
+local line = file:read("*l") \
+if line == nil then break end \
+if string.len(line) ~= 0 then \
+local s = string.gsub(line, "^", "-u ", 1) \
+s = string.gsub(s, ",", " -p ", 1) \
+s = string.gsub(s, ",", " -t ", 1) \
+s = string.gsub(s, ",", " -f ", 1) \
+s = string.gsub(s, ",", " -r ", 1) \
+s = string.gsub(s, ",", " -m ", 1) \
+print("/bin/bash /opt/rorotika/home/scripts/common/oradbusersadd.sh " .. s) \
+print("\\n") \
+end \
+end \
+else \
+print("Unable to locate file meta/oradbusers. Either make sure the file exists and has data in it or remove %install_oradbusers from the RPM's spec file.") \
+end \
+}
+
+%not_on_upgrade() \
+if [ "$1" != "1" ]; then \
+	exit 0 \
+fi
+
+%not_on_upgrade_uninstall() \
+if [ "$1" != "0" ]; then \
+	exit 0 \
+fi
+
+%replace_gnu_commands() \
+  bash %{_topdir}/scripts/replace-gnu-commands-scripts.sh %{_topdir}/SOURCES/replacements.%{_target_os} %1
+
+%enablesvnupdate() \
+touch /opt/rorotika/svn/svnupdate \
+chown rorotika:users /opt/rorotika/svn/svnupdate \
+localdir=$(echo "%2" | sed "s;/;\\\\\\/;g") \
+sed -i "/"$localdir"/d" /opt/rorotika/svn/svnupdate \
+echo '%1 %2' >> /opt/rorotika/svn/svnupdate \
+
+
+%disablesvnupdate() \
+localdir=$(echo "%2" | sed "s;/;\\\\\\/;g") \
+sed -i "/"$localdir"/d" /opt/rorotika/svn/svnupdate \
+
+
