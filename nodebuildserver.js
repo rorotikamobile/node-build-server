@@ -47,6 +47,9 @@ var run_process = function (cmd,args,opts,callback) {
     });
 }
 
+app.get('/', function (req, res) {
+    res.end("<html><h1>Hello Test</h1></html>");
+});
 app.get('/build/:app', function(req, res){
     
     var app = req.params.app,
@@ -72,4 +75,6 @@ app.get('/build/:app', function(req, res){
     
 });
 
-app.listen(5067);
+var port = process.env.PORT || 3000;
+console.log('listening on', port);
+app.listen(port);
