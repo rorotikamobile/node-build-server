@@ -48,7 +48,7 @@ var run_process = function (cmd,args,opts,callback) {
 }
 
 app.get('/', function (req, res) {
-    res.end("<html><h1>Hello Test</h1></html>");
+    res.end("<html><h1>Hello WALTER</h1></html>");
 });
 app.get('/build/:app', function(req, res){
     
